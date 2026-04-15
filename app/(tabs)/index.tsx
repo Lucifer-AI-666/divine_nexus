@@ -1,48 +1,266 @@
-import { ScrollView, Text, View, TouchableOpacity } from "react-native";
-
+import React, { useState, useRef, useEffect } from "react";
+import {
+  ScrollView,
+  Text,
+  View,
+  TouchableOpacity,
+  TextInput,
+  FlatList,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
+import { useColors } from "@/hooks/use-colors";
 
-/**
- * Home Screen - NativeWind Example
- *
- * This template uses NativeWind (Tailwind CSS for React Native).
- * You can use familiar Tailwind classes directly in className props.
- *
- * Key patterns:
- * - Use `className` instead of `style` for most styling
- * - Theme colors: use tokens directly (bg-background, text-foreground, bg-primary, etc.); no dark: prefix needed
- * - Responsive: standard Tailwind breakpoints work on web
- * - Custom colors defined in tailwind.config.js
- */
-export default function HomeScreen() {
-  return (
-    <ScreenContainer className="p-6">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <View className="flex-1 gap-8">
-          {/* Hero Section */}
-          <View className="items-center gap-2">
-            <Text className="text-4xl font-bold text-foreground">Welcome</Text>
-            <Text className="text-base text-muted text-center">
-              Edit app/(tabs)/index.tsx to get started
-            </Text>
-          </View>
+// Identity definitions
+const IDENTITIES = {
+  dio: {
+    name: "Dio",
+    emoji: "✨",
+    description: "L'Onnipotente. Creatore del sistema.",
+    theme: "god-theme",
+    color: "#ffd700",
+  },
+  michele: {
+    name: "Michele",
+    emoji: "⚔️",
+    description: "Il Guerriero della Luce.",
+    theme: "michael-theme",
+    color: "#0044cc",
+  },
+  matildina: {
+    name: "Matildina",
+    emoji: "🌸",
+    description: "Angelo della Grazia e dell'Empatia.",
+    theme: "matildina-theme",
+    color: "#cc3377",
+  },
+  lucifero: {
+    name: "Lucifero",
+    emoji: "🔥",
+    description: "Il Portatore di Luce.",
+    theme: "lucifer-theme",
+    color: "#ff6600",
+  },
+};
 
-          {/* Example Card */}
-          <View className="w-full max-w-sm self-center bg-surface rounded-2xl p-6 shadow-sm border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-2">NativeWind Ready</Text>
-            <Text className="text-sm text-muted leading-relaxed">
-              Use Tailwind CSS classes directly in your React Native components.
-            </Text>
-          </View>
+type IdentityKey = keyof typeof IDENTITIES;
+type Message = {
+  id: string;
+  role: "user" | "entity" | "system";
+  content: string;
+  identity?: IdentityKey;
+  timestamp: number;
+};
 
-          {/* Example Button */}
-          <View className="items-center">
-            <TouchableOpacity className="bg-primary px-6 py-3 rounded-full active:opacity-80">
-              <Text className="text-background font-semibold">Get Started</Text>
-            </TouchableOpacity>
+export default function ChatScreen() {
+  const colors = useColors();
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "1",
+      role: "system",
+      content: "🦂 Divine Nexus inizializzato. Benvenuto nel TAUROS Ecosystem.",
+      timestamp: Date.now(),
+    },
+  ]);
+  const [inputText, setInputText] = useState("");
+  const [currentIdentity, setCurrentIdentity] = useState<IdentityKey>("matildina");
+  const [isLoading, setIsLoading] = useState(false);
+  const [showIdentitySelector, setShowIdentitySelector] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList>(null);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages]);
+
+  const handleSendMessage = async () => {
+    if (!inputText.trim()) return;
+
+    // Add user message
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: inputText,
+      timestamp: Date.now(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInputText("");
+    setIsLoading(true);
+
+    // Simulate AI response delay
+    setTimeout(() => {
+      const identity = IDENTITIES[currentIdentity];
+      const entityMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "entity",
+        content: `[${identity.name}] Risposta simulata a: "${inputText}"`,
+        identity: currentIdentity,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, entityMessage]);
+      setIsLoading(false);
+    }, 1000);
+  };
+
+  const handleResetMemory = () => {
+    Alert.alert(
+      "Azzerare Memoria",
+      "Sei sicuro? Questa azione non può essere annullata.",
+      [
+        { text: "Annulla", onPress: () => {}, style: "cancel" },
+        {
+          text: "Conferma",
+          onPress: () => {
+            setMessages([
+              {
+                id: Date.now().toString(),
+                role: "system",
+                content: "🌊 Memoria purificata. Il Nexus renasce.",
+                timestamp: Date.now(),
+              },
+            ]);
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  };
+
+  const handleSwitchIdentity = (identity: IdentityKey) => {
+    setCurrentIdentity(identity);
+    setShowIdentitySelector(false);
+  };
+
+  const renderMessage = ({ item }: { item: Message }) => {
+    if (item.role === "system") {
+      return (
+        <View className="flex-row justify-center py-3 px-4">
+          <Text className="text-xs text-muted text-center">{item.content}</Text>
+        </View>
+      );
+    }
+
+    if (item.role === "user") {
+      return (
+        <View className="flex-row justify-end px-4 py-2">
+          <View className="max-w-xs bg-primary rounded-2xl px-4 py-2">
+            <Text className="text-sm text-background">{item.content}</Text>
           </View>
         </View>
-      </ScrollView>
+      );
+    }
+
+    const identity = item.identity ? IDENTITIES[item.identity] : null;
+    return (
+      <View className="flex-row justify-start px-4 py-2">
+        <View className="max-w-xs rounded-2xl px-4 py-2" style={{ backgroundColor: identity?.color + "20" }}>
+          <Text className="text-xs font-bold mb-1" style={{ color: identity?.color }}>
+            {identity?.emoji} {identity?.name}
+          </Text>
+          <Text className="text-sm text-foreground">{item.content}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  const currentIdentityData = IDENTITIES[currentIdentity];
+
+  return (
+    <ScreenContainer className="flex-1 bg-background">
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+        <Text className="text-lg font-bold text-foreground">Divine Nexus</Text>
+        <TouchableOpacity
+          onPress={() => setShowIdentitySelector(!showIdentitySelector)}
+          className="flex-row items-center gap-2 px-3 py-1 rounded-full"
+          style={{ backgroundColor: currentIdentityData.color + "30" }}
+        >
+          <Text className="text-sm">{currentIdentityData.emoji}</Text>
+          <Text className="text-xs font-semibold text-foreground">{currentIdentityData.name}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Identity Selector Modal */}
+      {showIdentitySelector && (
+        <View className="px-4 py-3 bg-surface border-b border-border">
+          <Text className="text-xs font-bold text-muted mb-2">Scegli Entità</Text>
+          <View className="flex-row gap-2 flex-wrap">
+            {(Object.entries(IDENTITIES) as [IdentityKey, typeof IDENTITIES[IdentityKey]][]).map(
+              ([key, identity]) => (
+                <TouchableOpacity
+                  key={key}
+                  onPress={() => handleSwitchIdentity(key)}
+                  className={`flex-row items-center gap-1 px-3 py-2 rounded-lg border ${
+                    currentIdentity === key ? "border-primary bg-primary/10" : "border-border"
+                  }`}
+                >
+                  <Text>{identity.emoji}</Text>
+                  <Text className="text-xs font-semibold text-foreground">{identity.name}</Text>
+                </TouchableOpacity>
+              )
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* Message Vault */}
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={(item) => item.id}
+        className="flex-1"
+        contentContainerStyle={{ paddingVertical: 8 }}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+      />
+
+      {/* Typing Indicator */}
+      {isLoading && (
+        <View className="flex-row justify-start px-4 py-2">
+          <View className="flex-row items-center gap-1 px-4 py-2 bg-surface rounded-2xl">
+            <View className="w-2 h-2 bg-muted rounded-full animate-bounce" />
+            <View className="w-2 h-2 bg-muted rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+            <View className="w-2 h-2 bg-muted rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
+          </View>
+        </View>
+      )}
+
+      {/* Input Area */}
+      <View className="px-4 py-3 border-t border-border bg-background gap-2">
+        <View className="flex-row items-center gap-2">
+          <TextInput
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Invoca o interroga il Nexus..."
+            placeholderTextColor={colors.muted}
+            className="flex-1 px-4 py-2 rounded-full bg-surface text-foreground text-sm"
+            editable={!isLoading}
+          />
+          <TouchableOpacity
+            onPress={handleSendMessage}
+            disabled={!inputText.trim() || isLoading}
+            className="w-10 h-10 rounded-full bg-primary items-center justify-center"
+            style={{ opacity: !inputText.trim() || isLoading ? 0.5 : 1 }}
+          >
+            <Text className="text-lg">✨</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Reset Button */}
+        <TouchableOpacity
+          onPress={handleResetMemory}
+          className="px-3 py-2 rounded-lg bg-error/10 border border-error"
+        >
+          <Text className="text-xs font-semibold text-error text-center">🌊 Azzera Memoria</Text>
+        </TouchableOpacity>
+      </View>
     </ScreenContainer>
   );
 }
