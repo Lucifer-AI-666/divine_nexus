@@ -74,3 +74,10 @@
 - [ ] Test tab navigation between Chat, Automations, Shell
 - [ ] Test automations temporal organization
 - [ ] Test shell command execution
+
+## Groq AI Integration
+- [x] Configure Groq API key as environment variable
+- [x] Create server-side AI chat endpoint
+- [x] Update chat screen to call Groq API for intelligent responses
+- [x] Add system prompts per identity (Dio, Michele, Matildina, Lucifero)
+- [x] Test AI responses end-to-end

@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  ScrollView,
   Text,
   View,
   TouchableOpacity,
   TextInput,
   FlatList,
-  ActivityIndicator,
   Alert,
+  Platform,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
+import { trpc } from "@/lib/trpc";
 
 // Identity definitions
 const IDENTITIES = {
@@ -67,8 +67,10 @@ export default function ChatScreen() {
   const [currentIdentity, setCurrentIdentity] = useState<IdentityKey>("matildina");
   const [isLoading, setIsLoading] = useState(false);
   const [showIdentitySelector, setShowIdentitySelector] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
   const flatListRef = useRef<FlatList>(null);
+
+  // tRPC mutation for chat
+  const chatMutation = trpc.chat.send.useMutation();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -80,13 +82,15 @@ export default function ChatScreen() {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || isLoading) return;
+
+    const userText = inputText.trim();
 
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: inputText,
+      content: userText,
       timestamp: Date.now(),
     };
 
@@ -94,48 +98,91 @@ export default function ChatScreen() {
     setInputText("");
     setIsLoading(true);
 
-    // Simulate AI response delay
-    setTimeout(() => {
-      const identity = IDENTITIES[currentIdentity];
+    // Build history for context
+    const history = messages
+      .filter((m) => m.role === "user" || m.role === "entity")
+      .slice(-10)
+      .map((m) => ({
+        role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+        content: m.content,
+      }));
+
+    try {
+      const result = await chatMutation.mutateAsync({
+        message: userText,
+        identity: currentIdentity,
+        history,
+      });
+
       const entityMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "entity",
-        content: `[${identity.name}] Risposta simulata a: "${inputText}"`,
+        content: result.content,
         identity: currentIdentity,
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, entityMessage]);
+    } catch (error: any) {
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "system",
+        content: `⚠️ Errore: ${error.message || "Connessione fallita"}`,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleResetMemory = () => {
-    Alert.alert(
-      "Azzerare Memoria",
-      "Sei sicuro? Questa azione non può essere annullata.",
-      [
-        { text: "Annulla", onPress: () => {}, style: "cancel" },
-        {
-          text: "Conferma",
-          onPress: () => {
-            setMessages([
-              {
-                id: Date.now().toString(),
-                role: "system",
-                content: "🌊 Memoria purificata. Il Nexus renasce.",
-                timestamp: Date.now(),
-              },
-            ]);
+    if (Platform.OS === "web") {
+      if (confirm("Azzerare Memoria? Questa azione non può essere annullata.")) {
+        setMessages([
+          {
+            id: Date.now().toString(),
+            role: "system",
+            content: "🌊 Memoria purificata. Il Nexus renasce.",
+            timestamp: Date.now(),
           },
-          style: "destructive",
-        },
-      ]
-    );
+        ]);
+      }
+    } else {
+      Alert.alert(
+        "Azzerare Memoria",
+        "Sei sicuro? Questa azione non può essere annullata.",
+        [
+          { text: "Annulla", onPress: () => {}, style: "cancel" },
+          {
+            text: "Conferma",
+            onPress: () => {
+              setMessages([
+                {
+                  id: Date.now().toString(),
+                  role: "system",
+                  content: "🌊 Memoria purificata. Il Nexus renasce.",
+                  timestamp: Date.now(),
+                },
+              ]);
+            },
+            style: "destructive",
+          },
+        ]
+      );
+    }
   };
 
   const handleSwitchIdentity = (identity: IdentityKey) => {
     setCurrentIdentity(identity);
     setShowIdentitySelector(false);
+    const identityData = IDENTITIES[identity];
+    const switchMessage: Message = {
+      id: Date.now().toString(),
+      role: "system",
+      content: `${identityData.emoji} Entità attiva: ${identityData.name} — ${identityData.description}`,
+      timestamp: Date.now(),
+    };
+    setMessages((prev) => [...prev, switchMessage]);
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
@@ -160,11 +207,11 @@ export default function ChatScreen() {
     const identity = item.identity ? IDENTITIES[item.identity] : null;
     return (
       <View className="flex-row justify-start px-4 py-2">
-        <View className="max-w-xs rounded-2xl px-4 py-2" style={{ backgroundColor: identity?.color + "20" }}>
+        <View className="max-w-xs rounded-2xl px-4 py-3" style={{ backgroundColor: (identity?.color || "#666") + "20" }}>
           <Text className="text-xs font-bold mb-1" style={{ color: identity?.color }}>
             {identity?.emoji} {identity?.name}
           </Text>
-          <Text className="text-sm text-foreground">{item.content}</Text>
+          <Text className="text-sm text-foreground leading-relaxed">{item.content}</Text>
         </View>
       </View>
     );
@@ -192,7 +239,7 @@ export default function ChatScreen() {
         <View className="px-4 py-3 bg-surface border-b border-border">
           <Text className="text-xs font-bold text-muted mb-2">Scegli Entità</Text>
           <View className="flex-row gap-2 flex-wrap">
-            {(Object.entries(IDENTITIES) as [IdentityKey, typeof IDENTITIES[IdentityKey]][]).map(
+            {(Object.entries(IDENTITIES) as [IdentityKey, (typeof IDENTITIES)[IdentityKey]][]).map(
               ([key, identity]) => (
                 <TouchableOpacity
                   key={key}
@@ -225,9 +272,9 @@ export default function ChatScreen() {
       {isLoading && (
         <View className="flex-row justify-start px-4 py-2">
           <View className="flex-row items-center gap-1 px-4 py-2 bg-surface rounded-2xl">
-            <View className="w-2 h-2 bg-muted rounded-full animate-bounce" />
-            <View className="w-2 h-2 bg-muted rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
-            <View className="w-2 h-2 bg-muted rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
+            <Text className="text-xs text-muted">
+              {currentIdentityData.emoji} {currentIdentityData.name} sta rispondendo...
+            </Text>
           </View>
         </View>
       )}
@@ -242,6 +289,8 @@ export default function ChatScreen() {
             placeholderTextColor={colors.muted}
             className="flex-1 px-4 py-2 rounded-full bg-surface text-foreground text-sm"
             editable={!isLoading}
+            onSubmitEditing={handleSendMessage}
+            returnKeyType="send"
           />
           <TouchableOpacity
             onPress={handleSendMessage}
