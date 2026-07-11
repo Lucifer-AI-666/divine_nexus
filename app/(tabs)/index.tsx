@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Text,
   View,
@@ -8,16 +8,9 @@ import {
   Alert,
   Platform,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import { trpc } from "@/lib/trpc";
-
-// Storage keys
-const STORAGE_KEYS = {
-  MESSAGES: "@divine_nexus_messages",
-  IDENTITY: "@divine_nexus_identity",
-};
 
 // Identity definitions
 const IDENTITIES = {
@@ -60,81 +53,24 @@ type Message = {
   timestamp: number;
 };
 
-const DEFAULT_MESSAGE: Message = {
-  id: "1",
-  role: "system",
-  content: "🦂 Divine Nexus inizializzato. Benvenuto nel TAUROS Ecosystem.",
-  timestamp: Date.now(),
-};
-
 export default function ChatScreen() {
   const colors = useColors();
-  const [messages, setMessages] = useState<Message[]>([DEFAULT_MESSAGE]);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "1",
+      role: "system",
+      content: "🦂 Divine Nexus inizializzato. Benvenuto nel TAUROS Ecosystem.",
+      timestamp: Date.now(),
+    },
+  ]);
   const [inputText, setInputText] = useState("");
   const [currentIdentity, setCurrentIdentity] = useState<IdentityKey>("matildina");
   const [isLoading, setIsLoading] = useState(false);
   const [showIdentitySelector, setShowIdentitySelector] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   // tRPC mutation for chat
   const chatMutation = trpc.chat.send.useMutation();
-
-  // Load saved messages and identity on mount
-  useEffect(() => {
-    const loadSavedData = async () => {
-      try {
-        const [savedMessages, savedIdentity] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.MESSAGES),
-          AsyncStorage.getItem(STORAGE_KEYS.IDENTITY),
-        ]);
-
-        if (savedMessages) {
-          const parsed = JSON.parse(savedMessages) as Message[];
-          if (parsed.length > 0) {
-            setMessages(parsed);
-          }
-        }
-
-        if (savedIdentity && savedIdentity in IDENTITIES) {
-          setCurrentIdentity(savedIdentity as IdentityKey);
-        }
-      } catch (error) {
-        console.error("Errore caricamento cronologia:", error);
-      } finally {
-        setIsInitialized(true);
-      }
-    };
-
-    loadSavedData();
-  }, []);
-
-  // Save messages to AsyncStorage whenever they change
-  const saveMessages = useCallback(async (msgs: Message[]) => {
-    try {
-      // Keep max 200 messages to avoid storage bloat
-      const toSave = msgs.slice(-200);
-      await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(toSave));
-    } catch (error) {
-      console.error("Errore salvataggio messaggi:", error);
-    }
-  }, []);
-
-  // Save identity to AsyncStorage
-  const saveIdentity = useCallback(async (identity: IdentityKey) => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.IDENTITY, identity);
-    } catch (error) {
-      console.error("Errore salvataggio identità:", error);
-    }
-  }, []);
-
-  // Persist messages on change (skip initial load)
-  useEffect(() => {
-    if (isInitialized) {
-      saveMessages(messages);
-    }
-  }, [messages, isInitialized, saveMessages]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -200,25 +136,16 @@ export default function ChatScreen() {
   };
 
   const handleResetMemory = () => {
-    const doReset = async () => {
-      const resetMessage: Message = {
-        id: Date.now().toString(),
-        role: "system",
-        content: "🌊 Memoria purificata. Il Nexus renasce.",
-        timestamp: Date.now(),
-      };
-      setMessages([resetMessage]);
-      // Clear stored messages
-      try {
-        await AsyncStorage.removeItem(STORAGE_KEYS.MESSAGES);
-      } catch (error) {
-        console.error("Errore pulizia storage:", error);
-      }
-    };
-
     if (Platform.OS === "web") {
       if (confirm("Azzerare Memoria? Questa azione non può essere annullata.")) {
-        doReset();
+        setMessages([
+          {
+            id: Date.now().toString(),
+            role: "system",
+            content: "🌊 Memoria purificata. Il Nexus renasce.",
+            timestamp: Date.now(),
+          },
+        ]);
       }
     } else {
       Alert.alert(
@@ -226,7 +153,20 @@ export default function ChatScreen() {
         "Sei sicuro? Questa azione non può essere annullata.",
         [
           { text: "Annulla", onPress: () => {}, style: "cancel" },
-          { text: "Conferma", onPress: doReset, style: "destructive" },
+          {
+            text: "Conferma",
+            onPress: () => {
+              setMessages([
+                {
+                  id: Date.now().toString(),
+                  role: "system",
+                  content: "🌊 Memoria purificata. Il Nexus renasce.",
+                  timestamp: Date.now(),
+                },
+              ]);
+            },
+            style: "destructive",
+          },
         ]
       );
     }
@@ -235,7 +175,6 @@ export default function ChatScreen() {
   const handleSwitchIdentity = (identity: IdentityKey) => {
     setCurrentIdentity(identity);
     setShowIdentitySelector(false);
-    saveIdentity(identity);
     const identityData = IDENTITIES[identity];
     const switchMessage: Message = {
       id: Date.now().toString(),
