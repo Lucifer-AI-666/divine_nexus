@@ -3,6 +3,7 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { getOrchestrator } from "./orchestrator";
 
 // System prompts for each identity
 const IDENTITY_PROMPTS: Record<string, string> = {
@@ -95,6 +96,47 @@ export const appRouter = router({
             model: "error",
           };
         }
+      }),
+  }),
+
+  // Nonno Saggio — orchestrazione della famiglia.
+  // Ogni comando passa dal Nonno prima che un membro possa agire.
+  orchestrator: router({
+    // La famiglia al completo (identita' locali + agenti esterni).
+    family: publicProcedure.query(() => {
+      return { members: getOrchestrator().roster() };
+    }),
+
+    // Registro delle decisioni recenti del Nonno.
+    audit: publicProcedure
+      .input(z.object({ limit: z.number().min(1).max(200).optional() }).optional())
+      .query(({ input }) => {
+        return { entries: getOrchestrator().audit.recent(input?.limit ?? 50) };
+      }),
+
+    // Impartisci un comando alla famiglia sotto il giudizio del Nonno.
+    command: publicProcedure
+      .input(
+        z.object({
+          text: z.string().min(1),
+          target: z.string().optional(),
+          confirmed: z.boolean().optional(),
+          risk: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const result = await getOrchestrator().dispatch(input);
+        // Non esponiamo la benedizione (token firmato) al client.
+        const { blessing, ...verdict } = result.verdict;
+        return {
+          commandId: result.command.id,
+          risk: result.command.risk,
+          outcome: result.outcome,
+          verdict,
+          member: result.member,
+          output: result.output,
+          meta: result.meta,
+        };
       }),
   }),
 });
