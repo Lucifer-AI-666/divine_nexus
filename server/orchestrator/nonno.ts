@@ -125,7 +125,10 @@ export function makeCommand(
   idFn: () => string,
   now: () => number = Date.now
 ): Command {
-  const risk = (input.risk ?? classifyRisk(input.text)) as Command["risk"];
+  const classified = classifyRisk(input.text);
+  const provided = input.risk;
+  const safeProvided = provided === 0 || provided === 1 || provided === 2 || provided === 3 ? provided : undefined;
+  const risk = (safeProvided !== undefined ? Math.max(classified, safeProvided) : classified) as Command["risk"];
   return {
     id: idFn(),
     text: input.text,
