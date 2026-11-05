@@ -262,9 +262,15 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     responseFormat,
     response_format,
   } = params;
+  const containsImage = messages.some((message) =>
+    ensureArray(message.content).some((part) => typeof part !== "string" && part.type === "image_url"),
+  );
+  if (containsImage && !ENV.llmVisionModel) {
+    throw new Error("LLM_VISION_MODEL must be configured for image requests");
+  }
 
   const payload: Record<string, unknown> = {
-    model: ENV.llmModel,
+    model: containsImage ? ENV.llmVisionModel : ENV.llmModel,
     messages: messages.map(normalizeMessage),
   };
 

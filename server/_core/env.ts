@@ -8,6 +8,7 @@ export const ENV = {
   llmApiUrl: process.env.LLM_API_URL || "https://api.groq.com/openai/v1",
   llmApiKey: process.env.LLM_API_KEY || process.env.GROQ_API_KEY || "",
   llmModel: process.env.LLM_MODEL || "llama-3.3-70b-versatile",
+  llmVisionModel: process.env.LLM_VISION_MODEL || "",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
 };
