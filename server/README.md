@@ -446,6 +446,7 @@ const structured = await invokeLLM({
 The helpers mirror the Python SDK semantics but produce JavaScript-first code, keeping credentials inside the server and ensuring every environment has access to the same token.
 
 **CRITICAL Note:** `json_schema` works for flat structures. For nested arrays/objects, use `json_object` instead.
+Image requests require `LLM_VISION_MODEL` to be set to a vision-capable model for your configured provider.
 ```ts
 const response = await invokeLLM({
   messages: [
